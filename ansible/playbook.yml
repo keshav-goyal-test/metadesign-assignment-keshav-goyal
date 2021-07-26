@@ -1,0 +1,66 @@
+---
+ - name: Setup Flask and nginx
+   hosts: webserver
+   become: yes
+   tasks:
+    - name: Update Cache and Upgrade all Packages
+      register: updatesys
+      apt:
+        name: "*"
+        state: latest
+        update_cache: yes
+
+    - name: ensure system packages are at the latest version
+      register: updatesys
+      apt:
+        update_cache: yes
+        name:
+          - git
+          - nginx
+          - python3-pip
+          - python3-flask
+          - python3-gunicorn
+          - gunicorn
+
+        state: present
+
+    - name: clone repo
+      git:
+        repo: 'https://github.com/{{ github_user }}/{{ app_name }}.git'
+        dest: /home/{{ ansible_ssh_user }}/{{ app_name }}
+        update: yes
+
+    - name: Create directory for web-app
+      file:
+         path: /var/www/application/
+         state: directory
+
+    - name: template systemd service config
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        remote_src: yes
+      with_items:
+        - { src: '/home/{{ ansible_ssh_user }}/{{ app_name }}/web-app/', dest: '/var/www/application/' }
+        - { src: '/home/{{ ansible_ssh_user }}/{{ app_name }}/web-app/service', dest: '/etc/systemd/system/application.service' }
+        - { src: '/home/{{ ansible_ssh_user }}/{{ app_name }}/web-app/nginx', dest: '/etc/nginx/sites-available/{{ app_name }}' }
+
+
+    - name: start systemd app service
+      systemd: name=application.service state=restarted enabled=yes
+
+    - name: remove default nginx site config
+      file: 
+         path: /etc/nginx/sites-enabled/default 
+         state: absent
+
+    - name: enable nginx site
+      file:
+        src: /etc/nginx/sites-available/{{ app_name }}
+        dest: /etc/nginx/sites-enabled/default
+        state: link
+
+        force: yes
+
+    - name: restart nginx
+      systemd: name=nginx state=restarted enabled=yes

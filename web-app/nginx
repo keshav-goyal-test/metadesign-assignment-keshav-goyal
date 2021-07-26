@@ -1,0 +1,13 @@
+server {
+        listen 80;
+        server_name 54.227.134.35;
+        root /var/www/application;
+
+        access_log /var/log/nginx/application.access.log;
+        error_log /var/log/nginx/application.error.log;
+
+        location / {
+                include proxy_params;
+                proxy_pass http://unix:/var/www/application.sock;
+        }
+}
